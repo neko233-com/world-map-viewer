@@ -1,0 +1,10 @@
+node_modules/
+dist/
+*.local
+.DS_Store
+Thumbs.db
+.vite/
+npm-debug.log*
+
+# 本机工具配置（模型/认证等本地设置，不含密钥但无须分发）
+.codely-cli/

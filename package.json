@@ -1,0 +1,32 @@
+{
+  "name": "world-map-viewer",
+  "private": true,
+  "version": "0.1.0",
+  "license": "MIT",
+  "type": "module",
+  "description": "离线世界地图查看器（Natural Earth 矢量数据 + Leaflet + React），支持中/英/日/韩/法/德/西/俄 8 种语言切换。",
+  "engines": {
+    "node": ">=20.19"
+  },
+  "scripts": {
+    "fetch:data": "node scripts/fetch-data.mjs",
+    "dev": "node scripts/fetch-data.mjs --if-missing && vite",
+    "build": "node scripts/fetch-data.mjs --if-missing && tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "leaflet": "^1.9.4",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
+  },
+  "devDependencies": {
+    "@types/geojson": "^7946.0.16",
+    "@types/leaflet": "^1.9.22",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^6.1.2",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.4"
+  }
+}

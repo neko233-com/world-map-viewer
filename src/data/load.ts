@@ -19,7 +19,20 @@ async function loadJson<T>(file: string): Promise<T> {
   return (await response.json()) as T;
 }
 
-export async function loadMapData(): Promise<MapData> {
+let dataPromise: Promise<MapData> | undefined;
+
+/** StrictMode / remounts share one request batch; failures remain retryable. */
+export function loadMapData(): Promise<MapData> {
+  if (!dataPromise) {
+    dataPromise = readMapData().catch((error: unknown) => {
+      dataPromise = undefined;
+      throw error;
+    });
+  }
+  return dataPromise;
+}
+
+async function readMapData(): Promise<MapData> {
   const [countries, land, lakes, places, meta] = await Promise.all([
     loadJson<CountryCollection>('countries.geojson'),
     loadJson<PlainCollection>('land.geojson'),

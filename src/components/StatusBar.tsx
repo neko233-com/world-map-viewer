@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { useI18n } from '../i18n';
 import type { DataMeta } from '../data/types';
@@ -16,13 +16,16 @@ export interface StatusBarProps {
 export function StatusBar({ pointer, view, meta }: StatusBarProps) {
   const { t, lang } = useI18n();
   const [copied, setCopied] = useState(false);
+  const copyTimerRef = useRef<number | undefined>(undefined);
+  useEffect(() => () => window.clearTimeout(copyTimerRef.current), []);
 
   const copy = useCallback(async () => {
     if (!pointer) return;
     const ok = await copyText(`${pointer.lat.toFixed(6)}, ${pointer.lng.toFixed(6)}`);
     if (!ok) return;
     setCopied(true);
-    window.setTimeout(() => setCopied(false), 1600);
+    window.clearTimeout(copyTimerRef.current);
+    copyTimerRef.current = window.setTimeout(() => setCopied(false), 1600);
   }, [pointer]);
 
   return (

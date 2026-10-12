@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { memo, useMemo } from 'react';
 
 import { useI18n } from '../i18n';
 import { formatDistance, haversineKm, pathLengthKm, type LatLng } from '../lib/geo';
@@ -9,7 +9,7 @@ export interface MeasurePanelProps {
   onClear(): void;
 }
 
-export function MeasurePanel({ points, onUndo, onClear }: MeasurePanelProps) {
+export const MeasurePanel = memo(function MeasurePanel({ points, onUndo, onClear }: MeasurePanelProps) {
   const { t, lang } = useI18n();
 
   const segments = useMemo(
@@ -23,7 +23,7 @@ export function MeasurePanel({ points, onUndo, onClear }: MeasurePanelProps) {
   const total = useMemo(() => pathLengthKm(points), [points]);
 
   return (
-    <section className="group group--card">
+    <section className="group group--card measure-panel">
       <div className="card-head">
         <h2 className="group__title">
           {t('panel.measure')}
@@ -65,4 +65,4 @@ export function MeasurePanel({ points, onUndo, onClear }: MeasurePanelProps) {
       )}
     </section>
   );
-}
+});

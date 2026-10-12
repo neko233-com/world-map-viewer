@@ -17,19 +17,23 @@ export interface SearchDoc {
   zoom: number;
   pop: number;
   iso2?: string;
+  codes?: string[];
 }
 
-/** 归一化：去除变音符号、大小写、空格与标点，让 "Côte d'Ivoire" 也能用 "cotedivoire" 命中 */
+/** 保留各语言文字，兼容全角输入、分解韩文与无音标的拉丁名称。 */
 export function normalizeText(value: string): string {
   return value
+    .normalize('NFKC')
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
+    .normalize('NFC')
     .toLowerCase()
-    .replace(/[^a-z0-9\u3400-\u9fff]+/g, '');
+    .replace(/[^\p{L}\p{N}\p{M}]+/gu, '');
 }
 
 function buildTerms(props: CountryProps | PlaceProps): string[] {
   const raw = [...Object.values(props.names), ...props.aliases];
+  if ('rank' in props) raw.push(props.id, props.iso2 ?? '', props.iso3 ?? '');
   const terms = new Set<string>();
   for (const value of raw) {
     const normalized = normalizeText(value);
@@ -79,6 +83,7 @@ export function buildSearchIndex(data: MapData): SearchDoc[] {
       zoom: countryZoom(props.rank),
       pop: props.pop ?? 0,
       iso2: props.iso2,
+      codes: [props.id, props.iso2 ?? '', props.iso3 ?? ''].map(normalizeText).filter(Boolean),
     });
   }
 
@@ -102,6 +107,7 @@ export function buildSearchIndex(data: MapData): SearchDoc[] {
 }
 
 function scoreDoc(doc: SearchDoc, query: string, lang: Lang): number {
+  if (doc.codes?.includes(query)) return 1400;
   const primary = doc.primaryByLang[lang] || doc.primaryByLang.en || '';
   if (primary) {
     if (primary === query) return 1200;

@@ -1,5 +1,5 @@
-import type { Lang } from '../i18n';
-import type { LatLng } from './geo';
+import { LANG_IDS, type Lang } from '../i18n/types';
+import { MAX_MAP_LAT, MIN_MAP_ZOOM, MAX_MAP_ZOOM, type LatLng } from './geo';
 
 export type Theme = 'political' | 'night';
 
@@ -30,23 +30,31 @@ const isFiniteNumber = (value: unknown): value is number =>
   typeof value === 'number' && Number.isFinite(value);
 
 function parseLatLngPair(text: string): LatLng | null {
-  const [lat, lng] = text.split(',').map(Number);
+  const parts = text.split(',');
+  if (parts.length !== 2 || parts.some((part) => !part.trim())) return null;
+  const [lat, lng] = parts.map(Number);
   if (!isFiniteNumber(lat) || !isFiniteNumber(lng)) return null;
   if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
   return { lat, lng };
 }
 
 function parseBool(value: string | null): boolean | undefined {
-  if (value === null) return undefined;
-  return value === '1' || value === 'true';
+  if (value === '1' || value === 'true') return true;
+  if (value === '0' || value === 'false') return false;
+  return undefined;
+}
+
+function numberParam(params: URLSearchParams, key: string): number {
+  const value = params.get(key);
+  return value?.trim() ? Number(value) : NaN;
 }
 
 /** 解析地址栏 hash；容错处理，任何异常字段都退回到默认值 */
 export function decodeHash(hash: string): UrlState {
   const params = new URLSearchParams(hash.replace(/^#/, ''));
-  const lat = Number(params.get('lat'));
-  const lng = Number(params.get('lng'));
-  const zoom = Number(params.get('z'));
+  const lat = numberParam(params, 'lat');
+  const lng = numberParam(params, 'lng');
+  const zoom = numberParam(params, 'z');
 
   const langParam = params.get('lang');
   const themeParam = params.get('theme');
@@ -55,7 +63,9 @@ export function decodeHash(hash: string): UrlState {
   const markerText = params.get('mk');
   if (markerText) {
     for (const item of markerText.split(';')) {
-      const [pair, encodedName] = item.split('~');
+      const separator = item.indexOf('~');
+      const pair = separator < 0 ? item : item.slice(0, separator);
+      const encodedName = separator < 0 ? '' : item.slice(separator + 1);
       const point = parseLatLngPair(pair ?? '');
       if (!point) continue;
       let name = '';
@@ -81,11 +91,15 @@ export function decodeHash(hash: string): UrlState {
 
   return {
     view: {
-      lat: isFiniteNumber(lat) && lat >= -90 && lat <= 90 ? lat : DEFAULT_VIEW.lat,
+      lat: isFiniteNumber(lat) && lat >= -90 && lat <= 90
+        ? Math.max(-MAX_MAP_LAT, Math.min(MAX_MAP_LAT, lat))
+        : DEFAULT_VIEW.lat,
       lng: isFiniteNumber(lng) && lng >= -180 && lng <= 180 ? lng : DEFAULT_VIEW.lng,
-      zoom: isFiniteNumber(zoom) && zoom >= 1 && zoom <= 12 ? zoom : DEFAULT_VIEW.zoom,
+      zoom: isFiniteNumber(zoom)
+        ? Math.round(Math.max(MIN_MAP_ZOOM, Math.min(MAX_MAP_ZOOM, zoom)) * 2) / 2
+        : DEFAULT_VIEW.zoom,
     },
-    lang: langParam === 'zh-CN' || langParam === 'en' ? langParam : undefined,
+    lang: LANG_IDS.includes(langParam as Lang) ? (langParam as Lang) : undefined,
     theme: themeParam === 'political' || themeParam === 'night' ? themeParam : undefined,
     labels: parseBool(params.get('lbl')),
     graticule: parseBool(params.get('grat')),
@@ -121,7 +135,7 @@ export function encodeHash(input: EncodeInput): string {
       input.markers
         .map(
           (marker) =>
-            `${marker.lat.toFixed(4)},${marker.lng.toFixed(4)}~${encodeURIComponent(marker.name)}`,
+            `${marker.lat.toFixed(4)},${marker.lng.toFixed(4)}~${encodeURIComponent(marker.name).replace(/~/g, '%7E')}`,
         )
         .join(';'),
     );

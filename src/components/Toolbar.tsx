@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { memo, useState } from 'react';
 
 import { useI18n } from '../i18n';
 import type { Theme } from '../lib/share';
@@ -23,7 +23,7 @@ export interface ToolbarProps {
   locating: boolean;
 }
 
-export function Toolbar(props: ToolbarProps) {
+export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
   const { t } = useI18n();
   const [settingsOpen, setSettingsOpen] = useState(false);
 
@@ -89,4 +89,4 @@ export function Toolbar(props: ToolbarProps) {
       </div>
     </header>
   );
-}
+});

@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { memo, useEffect, useRef, type ReactNode } from 'react';
 
 import {
   CONTINENTS,
@@ -89,8 +89,13 @@ function cityRows(
   );
 }
 
-export function InfoCard({ country, city, data, onClose }: InfoCardProps) {
+export const InfoCard = memo(function InfoCard({ country, city, data, onClose }: InfoCardProps) {
   const { t, lang } = useI18n();
+  const cardRef = useRef<HTMLElement>(null);
+  const selectionId = country?.properties.id ?? city?.properties.id;
+  useEffect(() => {
+    if (selectionId) cardRef.current?.scrollIntoView({ block: 'nearest' });
+  }, [selectionId]);
 
   if (!country && !city) {
     return (
@@ -107,7 +112,7 @@ export function InfoCard({ country, city, data, onClose }: InfoCardProps) {
   const wiki = country?.properties.wiki ?? city?.properties.wiki;
 
   return (
-    <section className="group group--card">
+    <section className="group group--card info-card" ref={cardRef}>
       <div className="card-head">
         <span className="card-head__kind">{t(country ? 'card.country' : 'card.city')}</span>
         <button type="button" className="icon-button tone-plain" aria-label={t('card.close')} onClick={onClose}>
@@ -131,4 +136,4 @@ export function InfoCard({ country, city, data, onClose }: InfoCardProps) {
       ) : null}
     </section>
   );
-}
+});

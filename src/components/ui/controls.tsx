@@ -78,6 +78,7 @@ export function Segmented<T extends string>({
             type="button"
             role="radio"
             aria-checked={selected}
+            tabIndex={selected ? 0 : -1}
             className={`segmented__item${selected ? ' is-selected' : ''}`}
             onClick={() => onChange(option.value)}
           >
@@ -116,6 +117,8 @@ export function IconButton({
       aria-label={label}
       title={label}
       aria-pressed={active}
+      aria-busy={busy || undefined}
+      disabled={busy}
       onClick={onClick}
     >
       <Icon name={icon} size={Math.round(size * 0.52)} />

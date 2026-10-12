@@ -99,6 +99,7 @@ body {
   display: flex;
   flex-direction: column;
   height: 100%;
+  height: 100dvh;
   overflow: hidden;
   color: var(--text);
   background: var(--bg);
@@ -115,6 +116,7 @@ body {
   border-bottom: 0.5px solid var(--hairline);
   flex-wrap: wrap;
   z-index: 30;
+  flex-shrink: 0;
 }
 
 .toolbar__leading {
@@ -198,6 +200,11 @@ body {
 
 .icon-button.is-busy .icon {
   animation: icon-pulse 1.1s ease-in-out infinite;
+}
+
+button:disabled {
+  cursor: wait;
+  opacity: 0.6;
 }
 
 @keyframes icon-pulse {
@@ -509,6 +516,10 @@ body {
   display: none;
 }
 
+.sidebar-scrim {
+  display: none;
+}
+
 .sidebar__scroll {
   display: flex;
   flex-direction: column;
@@ -516,6 +527,11 @@ body {
   padding: 12px;
   overflow-y: auto;
   overscroll-behavior: contain;
+  min-height: 0;
+}
+
+.sidebar__scroll > * {
+  flex-shrink: 0;
 }
 
 .map-area {
@@ -716,6 +732,14 @@ body {
   color: var(--text-2);
 }
 
+.browse-results,
+.search-results {
+  max-height: min(36dvh, 320px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+
 .list__group + .list__group {
   margin-top: 8px;
 }
@@ -798,6 +822,8 @@ body {
   font-weight: 590;
   padding: 0;
   outline: none;
+  min-width: 0;
+  width: 100%;
 }
 
 .rows__meta {
@@ -999,6 +1025,7 @@ body {
   border-top: 0.5px solid var(--hairline);
   font-size: 11.5px;
   z-index: 20;
+  flex-shrink: 0;
 }
 
 .statusbar__item,
@@ -1069,6 +1096,8 @@ body {
   font-weight: 500;
   pointer-events: none;
   animation: popover-in 220ms var(--ease);
+  max-width: calc(100% - 28px);
+  text-align: center;
 }
 
 .map-legend {
@@ -1199,6 +1228,15 @@ body {
 .leaflet-container {
   background: var(--ocean);
   font-family: inherit;
+}
+
+.leaflet-control-scale-line {
+  color: var(--text);
+  background: var(--surface);
+  border-color: var(--text-2);
+  border-radius: 0 0 4px 4px;
+  font-family: var(--font);
+  text-shadow: none;
 }
 
 .wmv-map.is-mode-marker,
@@ -1360,6 +1398,15 @@ body {
 
 /* ── 窄屏 ───────────────────────────────────────────────────────── */
 @media (max-width: 900px) {
+  .sidebar-scrim {
+    display: block;
+    position: absolute;
+    inset: 0;
+    z-index: 35;
+    border: 0;
+    background: rgba(0, 0, 0, 0.2);
+  }
+
   .sidebar {
     position: absolute;
     inset: 0 auto 0 0;
@@ -1378,6 +1425,64 @@ body {
 
   .statusbar__meta span:last-child {
     display: none;
+  }
+}
+
+@media (max-width: 600px) {
+  .toolbar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+    padding: 8px 10px;
+  }
+
+  .toolbar__trailing {
+    display: contents;
+  }
+
+  .toolbar__actions {
+    grid-column: 2;
+    grid-row: 1;
+    gap: 5px;
+  }
+
+  .toolbar__trailing > .segmented {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+  .toolbar__titles h1 {
+    font-size: 13px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .statusbar {
+    gap: 4px;
+    padding: 5px 10px;
+  }
+
+  .statusbar__coords .statusbar__muted {
+    display: none;
+  }
+
+  .popover-panel {
+    position: fixed;
+    top: 52px;
+    right: 10px;
+    max-width: calc(100vw - 20px);
+    max-height: calc(100dvh - 72px);
+  }
+
+  .map-legend {
+    top: auto;
+    bottom: 12px;
+    left: 12px;
+    right: auto;
+  }
+
+  .leaflet-control-scale {
+    margin-bottom: 42px !important;
   }
 }
 

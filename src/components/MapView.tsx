@@ -1,18 +1,23 @@
-import { useEffect, useRef, type RefObject } from 'react';
+import { memo, useEffect, useRef, type RefObject } from 'react';
 import * as L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
 import type { Appearance, Lang } from '../i18n';
 import { translate } from '../i18n/messages';
 import { localizedName, type CountryFeature, type CountryProps, type MapData } from '../data/types';
-import { formatDistance, haversineKm, type LatLng, type LatLngTuple } from '../lib/geo';
-import type { MapMarker, Theme, ViewState } from '../lib/share';
+import {
+  formatDistance, greatCirclePoint, greatCircleSegments, haversineKm,
+  MAX_MAP_LAT, MIN_MAP_ZOOM, MAX_MAP_ZOOM, type LatLng, type LatLngTuple,
+} from '../lib/geo';
+import { DEFAULT_VIEW, type MapMarker, type Theme, type ViewState } from '../lib/share';
 import { nightPolygon, nextTerminatorDelayMs } from '../lib/sun';
 
 export type InteractionMode = 'pan' | 'marker' | 'measure';
 
 export interface MapApi {
   flyTo(lat: number, lng: number, zoom?: number): void;
+  restoreView(view: ViewState): void;
+  getView(): ViewState;
   zoomBy(delta: number): void;
   reset(): void;
 }
@@ -228,7 +233,14 @@ function countryStyle(
   };
 }
 
-export function MapView(props: MapViewProps) {
+/** Leaflet treats string tooltip content as HTML. Names must remain plain text. */
+function tooltipText(value: string): HTMLElement {
+  const span = document.createElement('span');
+  span.textContent = value;
+  return span;
+}
+
+export const MapView = memo(function MapView(props: MapViewProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<L.Map | null>(null);
   const bundleRef = useRef<LayerBundle | null>(null);
@@ -248,17 +260,18 @@ export function MapView(props: MapViewProps) {
     const map = L.map(container, {
       center: [initialView.lat, initialView.lng],
       zoom: initialView.zoom,
-      minZoom: 2,
-      maxZoom: 8,
+      minZoom: MIN_MAP_ZOOM,
+      maxZoom: MAX_MAP_ZOOM,
       zoomSnap: 0.5,
       zoomDelta: 0.5,
-      maxBounds: L.latLngBounds([-90, -180], [90, 180]),
+      maxBounds: L.latLngBounds([-MAX_MAP_LAT, -180], [MAX_MAP_LAT, 180]),
       maxBoundsViscosity: 1,
       zoomControl: false,
       attributionControl: false,
       worldCopyJump: false,
     });
     mapRef.current = map;
+    L.control.scale({ imperial: false, position: 'bottomleft', maxWidth: 120 }).addTo(map);
 
     for (const [name, zIndex] of Object.entries(PANES)) {
       const pane = map.createPane(name);
@@ -382,7 +395,7 @@ export function MapView(props: MapViewProps) {
         keyboard: false,
         icon: L.divIcon({ className: 'wmv-anchor', html: '', iconSize: [0, 0] }),
       });
-      anchor.bindTooltip(localizedName(city.names, propsRef.current.lang), {
+      anchor.bindTooltip(tooltipText(localizedName(city.names, propsRef.current.lang)), {
         permanent: true,
         direction: 'right',
         offset: [7, 0],
@@ -405,7 +418,7 @@ export function MapView(props: MapViewProps) {
         keyboard: false,
         icon: L.divIcon({ className: 'wmv-anchor', html: '', iconSize: [0, 0] }),
       });
-      anchor.bindTooltip(localizedName(country.names, propsRef.current.lang), {
+      anchor.bindTooltip(tooltipText(localizedName(country.names, propsRef.current.lang)), {
         permanent: true,
         direction: 'center',
         className: 'wmv-label wmv-label--country',
@@ -472,19 +485,31 @@ export function MapView(props: MapViewProps) {
       propsRef.current.onPointerMove({ lat: event.latlng.lat, lng: event.latlng.lng });
     });
     map.on('mouseout', () => propsRef.current.onPointerMove(null));
-    map.on('moveend', () => {
+    const getView = (): ViewState => {
       const center = map.getCenter();
-      propsRef.current.onViewChange({
-        lat: center.lat,
-        lng: center.lng,
-        zoom: map.getZoom(),
-      });
-    });
+      return { lat: center.lat, lng: center.lng, zoom: map.getZoom() };
+    };
+    const syncView = () => propsRef.current.onViewChange(getView());
+    map.on('moveend', syncView);
+    syncView();
+
+    const flyTo = (lat: number, lng: number, zoom = map.getZoom()) => {
+      const center: LatLngTuple = [Math.max(-MAX_MAP_LAT, Math.min(MAX_MAP_LAT, lat)), lng];
+      const targetZoom = Math.max(MIN_MAP_ZOOM, Math.min(MAX_MAP_ZOOM, zoom));
+      map.stop();
+      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        map.setView(center, targetZoom, { animate: false });
+      } else {
+        map.flyTo(center, targetZoom, { duration: 0.7 });
+      }
+    };
 
     propsRef.current.apiRef.current = {
-      flyTo: (lat, lng, zoom) => map.flyTo([lat, lng], zoom ?? map.getZoom(), { duration: 0.7 }),
+      flyTo,
+      restoreView: (view) => { map.stop(); map.setView([view.lat, view.lng], view.zoom, { animate: false }); },
+      getView,
       zoomBy: (delta) => map.setZoom(map.getZoom() + delta),
-      reset: () => map.flyTo([20, 0], 2, { duration: 0.7 }),
+      reset: () => flyTo(DEFAULT_VIEW.lat, DEFAULT_VIEW.lng, DEFAULT_VIEW.zoom),
     };
 
     const resizeObserver = new ResizeObserver(() => map.invalidateSize());
@@ -603,7 +628,7 @@ export function MapView(props: MapViewProps) {
     const bundle = bundleRef.current;
     if (!bundle) return;
     for (const entry of bundle.labels) {
-      entry.marker.setTooltipContent(localizedName(entry.names, props.lang));
+      entry.marker.setTooltipContent(tooltipText(localizedName(entry.names, props.lang)));
     }
   }, [props.lang]);
 
@@ -632,7 +657,7 @@ export function MapView(props: MapViewProps) {
     });
     for (const marker of props.markers) {
       L.marker([marker.lat, marker.lng], { icon, pane: 'wmvMarker', riseOnHover: true })
-        .bindTooltip(marker.name, {
+        .bindTooltip(tooltipText(marker.name), {
           direction: 'top',
           offset: [0, -18],
           className: 'wmv-tip',
@@ -676,10 +701,11 @@ export function MapView(props: MapViewProps) {
     if (!points.length) return;
 
     const style = resolvedStyles(props.theme, props.appearance);
-    const latlngs = points.map((point) => [point.lat, point.lng] as LatLngTuple);
-    if (latlngs.length > 1) {
-      L.polyline(latlngs, {
+    if (points.length > 1) {
+      const segments = points.slice(1).flatMap((point, index) => greatCircleSegments(points[index], point));
+      L.polyline(segments, {
         pane: 'wmvMeasure',
+        interactive: false,
         color: style.accent,
         weight: 2.5,
         dashArray: '6 4',
@@ -689,6 +715,7 @@ export function MapView(props: MapViewProps) {
     points.forEach((point, index) => {
       L.circleMarker([point.lat, point.lng], {
         pane: 'wmvMeasure',
+        interactive: false,
         radius: 4,
         color: '#ffffff',
         weight: 1.5,
@@ -698,11 +725,8 @@ export function MapView(props: MapViewProps) {
 
       if (index > 0) {
         const previous = points[index - 1];
-        const middle: LatLngTuple = [
-          (point.lat + previous.lat) / 2,
-          (point.lng + previous.lng) / 2,
-        ];
-        L.marker(middle, {
+        const middle = greatCirclePoint(previous, point, 0.5);
+        L.marker([middle.lat, middle.lng], {
           interactive: false,
           keyboard: false,
           icon: L.divIcon({ className: 'wmv-anchor', html: '', iconSize: [0, 0] }),
@@ -756,5 +780,5 @@ export function MapView(props: MapViewProps) {
     container.classList.toggle('is-mode-measure', props.mode === 'measure');
   }, [props.mode]);
 
-  return <div className="wmv-map" ref={containerRef} data-mode={props.mode} />;
-}
+  return <div className="wmv-map" ref={containerRef} data-mode={props.mode} aria-label={translate(props.lang, 'app.title')} />;
+});

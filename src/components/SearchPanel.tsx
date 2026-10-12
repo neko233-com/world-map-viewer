@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
+import { memo, useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
 
 import { useI18n, localizeValue, CONTINENTS, type Lang } from '../i18n';
 import { searchDocs, type SearchDoc } from '../data/search';
@@ -20,7 +20,7 @@ export interface SearchPanelProps {
 const ALL = '__all__';
 
 /** 侧栏顶部卡片：搜索、定位、坐标跳转、按大洲浏览 */
-export function SearchPanel({
+export const SearchPanel = memo(function SearchPanel({
   docs,
   countries,
   lang,
@@ -43,7 +43,7 @@ export function SearchPanel({
 
   useEffect(() => {
     setActive(0);
-  }, [query]);
+  }, [query, lang]);
 
   // 键盘上下选择时保证活动项可见
   useEffect(() => {
@@ -53,10 +53,14 @@ export function SearchPanel({
     active?.scrollIntoView({ block: 'nearest' });
   }, [active, results]);
 
+  const compactFormat = useMemo(
+    () => new Intl.NumberFormat(lang, { notation: 'compact', maximumFractionDigits: 1 }),
+    [lang],
+  );
   const compact = (value?: number) =>
     value === undefined
       ? ''
-      : new Intl.NumberFormat(lang, { notation: 'compact', maximumFractionDigits: 1 }).format(value);
+      : compactFormat.format(value);
 
   // 大洲分组：按国家数量从多到少排列，只显示数据里真实存在的大洲
   const continents = useMemo(() => {
@@ -89,10 +93,13 @@ export function SearchPanel({
   const total = grouped.reduce((sum, [, list]) => sum + list.length, 0);
 
   const handleSearchKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.nativeEvent.isComposing || event.keyCode === 229) return;
     if (event.key === 'ArrowDown') {
+      if (!results.length) return;
       event.preventDefault();
       setActive((index) => Math.min(index + 1, results.length - 1));
     } else if (event.key === 'ArrowUp') {
+      if (!results.length) return;
       event.preventDefault();
       setActive((index) => Math.max(index - 1, 0));
     } else if (event.key === 'Enter') {
@@ -127,6 +134,11 @@ export function SearchPanel({
           autoComplete="off"
           spellCheck={false}
           aria-label={t('search.label')}
+          role="combobox"
+          aria-autocomplete="list"
+          aria-expanded={Boolean(query && results.length)}
+          aria-controls={query && results.length ? 'wmv-search-results' : undefined}
+          aria-activedescendant={query && results[active] ? `wmv-result-${active}` : undefined}
           onChange={(event) => setQuery(event.target.value)}
           onKeyDown={handleSearchKeyDown}
         />
@@ -145,6 +157,8 @@ export function SearchPanel({
           className={`search-field__locate${locating ? ' is-busy' : ''}`}
           aria-label={t('locate.self')}
           title={t('locate.self')}
+          disabled={locating}
+          aria-busy={locating}
           onClick={onLocate}
         >
           <Icon name="locate" size={16} />
@@ -158,7 +172,9 @@ export function SearchPanel({
           inputMode="decimal"
           placeholder={t('locate.lat')}
           aria-label={t('locate.lat')}
-          onChange={(event) => setLatText(event.target.value)}
+          aria-invalid={Boolean(jumpError)}
+          aria-describedby={jumpError ? 'wmv-coord-error' : undefined}
+          onChange={(event) => { setLatText(event.target.value); setJumpError(null); }}
         />
         <input
           className="coord-jump__input"
@@ -166,14 +182,16 @@ export function SearchPanel({
           inputMode="decimal"
           placeholder={t('locate.lng')}
           aria-label={t('locate.lng')}
-          onChange={(event) => setLngText(event.target.value)}
+          aria-invalid={Boolean(jumpError)}
+          aria-describedby={jumpError ? 'wmv-coord-error' : undefined}
+          onChange={(event) => { setLngText(event.target.value); setJumpError(null); }}
         />
         <button type="submit" className="button button--tinted button--small">
           {t('locate.go')}
         </button>
       </form>
 
-      {jumpError ? <p className="inline-error">{jumpError}</p> : null}
+      {jumpError ? <p className="inline-error" id="wmv-coord-error" role="alert">{jumpError}</p> : null}
 
       {query ? (
         <div className="list" ref={resultsRef}>
@@ -181,13 +199,16 @@ export function SearchPanel({
           {results.length === 0 ? (
             <p className="hint">{t('search.none')}</p>
           ) : (
-            <ul className="rows rows--plain">
+            <ul className="rows rows--plain search-results" id="wmv-search-results" role="listbox" aria-label={t('search.results')}>
               {results.map((doc, index) => {
                 const secondary = secondaryName(doc.names, lang);
                 return (
-                  <li key={doc.id}>
+                  <li key={doc.id} role="presentation">
                     <button
                       type="button"
+                      id={`wmv-result-${index}`}
+                      role="option"
+                      aria-selected={index === active}
                       className={`list-row${index === active ? ' is-active' : ''}`}
                       onMouseEnter={() => setActive(index)}
                       onClick={() => onPick(doc)}
@@ -213,6 +234,7 @@ export function SearchPanel({
             <button
               type="button"
               className={`chip${continent === ALL ? ' is-active' : ''}`}
+              aria-pressed={continent === ALL}
               onClick={() => setContinent(ALL)}
             >
               {t('browse.all')}
@@ -222,6 +244,7 @@ export function SearchPanel({
                 key={key}
                 type="button"
                 className={`chip${continent === key ? ' is-active' : ''}`}
+                aria-pressed={continent === key}
                 onClick={() => setContinent(key)}
               >
                 {localizeValue(lang, key, CONTINENTS) ?? key}
@@ -234,7 +257,8 @@ export function SearchPanel({
           {grouped.length === 0 ? (
             <p className="hint">{t('browse.empty')}</p>
           ) : (
-            grouped.map(([key, list]) => (
+            <div className="browse-results">
+              {grouped.map(([key, list]) => (
               <div key={key} className="list__group">
                 {continent === ALL ? (
                   <div className="list__group-title">{localizeValue(lang, key, CONTINENTS) ?? key}</div>
@@ -267,10 +291,11 @@ export function SearchPanel({
                   ))}
                 </ul>
               </div>
-            ))
+              ))}
+            </div>
           )}
         </div>
       )}
     </section>
   );
-}
+});

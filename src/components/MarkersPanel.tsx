@@ -1,3 +1,5 @@
+import { memo } from 'react';
+
 import { useI18n } from '../i18n';
 import { formatLatLng } from '../lib/geo';
 import type { MapMarker } from '../lib/share';
@@ -11,11 +13,11 @@ export interface MarkersPanelProps {
   onZoomTo(marker: MapMarker): void;
 }
 
-export function MarkersPanel({ markers, onRename, onRemove, onClear, onZoomTo }: MarkersPanelProps) {
+export const MarkersPanel = memo(function MarkersPanel({ markers, onRename, onRemove, onClear, onZoomTo }: MarkersPanelProps) {
   const { t, lang } = useI18n();
 
   return (
-    <section className="group group--card">
+    <section className="group group--card markers-panel">
       <div className="card-head">
         <h2 className="group__title">
           {t('panel.markers')}
@@ -69,4 +71,4 @@ export function MarkersPanel({ markers, onRename, onRemove, onClear, onZoomTo }:
       )}
     </section>
   );
-}
+});

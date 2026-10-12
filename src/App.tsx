@@ -12,7 +12,7 @@ import { MarkersPanel } from './components/MarkersPanel';
 import { MeasurePanel } from './components/MeasurePanel';
 import { StatusBar } from './components/StatusBar';
 import { copyText } from './lib/clipboard';
-import type { LatLng } from './lib/geo';
+import { isValidLatLng, type LatLng } from './lib/geo';
 import { decodeHash, encodeHash, type MapMarker, type Theme, type ViewState } from './lib/share';
 
 import './styles.css';
@@ -39,11 +39,13 @@ function MapApp() {
   const [myLocation, setMyLocation] = useState<LatLng | null>(null);
   const [locating, setLocating] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
-  const [panelOpen, setPanelOpen] = useState(true);
+  const [panelOpen, setPanelOpen] = useState(() => !window.matchMedia('(max-width: 900px)').matches);
 
   const apiRef = useRef<MapApi | null>(null);
   const markerSeq = useRef(initialState.markers.length);
   const lastPointerAt = useRef(0);
+  const urlTimerRef = useRef<number | undefined>(undefined);
+  const locatingRef = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -80,6 +82,7 @@ function MapApp() {
       });
       window.history.replaceState(null, '', hash);
     }, 250);
+    urlTimerRef.current = timer;
     return () => window.clearTimeout(timer);
   }, [view, lang, theme, showLabels, showGraticule, markers, measure]);
 
@@ -94,14 +97,19 @@ function MapApp() {
   useEffect(() => {
     const onHashChange = () => {
       const next = decodeHash(window.location.hash);
+      window.clearTimeout(urlTimerRef.current);
       setView(next.view);
       setTheme(next.theme ?? 'political');
       setShowLabels(next.labels ?? true);
       setShowGraticule(next.graticule ?? false);
       setMarkers(next.markers);
       setMeasure(next.measure);
+      markerSeq.current = next.markers.length;
+      setSelectedCountryId(null);
+      setSelectedCityId(null);
+      setMode('pan');
       if (next.lang) setLangPref(next.lang);
-      apiRef.current?.flyTo(next.view.lat, next.view.lng, next.view.zoom);
+      apiRef.current?.restoreView(next.view);
     };
     window.addEventListener('hashchange', onHashChange);
     return () => window.removeEventListener('hashchange', onHashChange);
@@ -110,10 +118,10 @@ function MapApp() {
   // 指针坐标节流更新，避免每次 mousemove 都触发整棵树重渲染
   const handlePointerMove = useCallback((point: LatLng | null) => {
     if (!point) {
-      lastPointerAt.current = 0;
-      setPointer(null);
+      // 保留最后的位置，让用户移到状态栏后仍能复制坐标。
       return;
     }
+    if (!isValidLatLng(point.lat, point.lng)) return;
     const now = performance.now();
     if (now - lastPointerAt.current < 60) return;
     lastPointerAt.current = now;
@@ -127,6 +135,7 @@ function MapApp() {
 
   const handleMapClick = useCallback(
     (point: LatLng) => {
+      if (!isValidLatLng(point.lat, point.lng)) return;
       if (mode === 'marker') {
         markerSeq.current += 1;
         const seq = markerSeq.current;
@@ -199,20 +208,23 @@ function MapApp() {
   const handleJump = useCallback(
     (point: LatLng) => {
       apiRef.current?.flyTo(point.lat, point.lng, Math.max(view.zoom, 6));
-      setPanelOpen(true);
+      if (window.matchMedia('(max-width: 900px)').matches) setPanelOpen(false);
     },
     [view.zoom],
   );
 
   const handleLocate = useCallback(() => {
+    if (locatingRef.current) return;
     if (typeof navigator === 'undefined' || !navigator.geolocation) {
       setToast(t('locate.unavailable'));
       return;
     }
     setLocating(true);
+    locatingRef.current = true;
     navigator.geolocation.getCurrentPosition(
       (position) => {
         setLocating(false);
+        locatingRef.current = false;
         const point = { lat: position.coords.latitude, lng: position.coords.longitude };
         setMyLocation(point);
         apiRef.current?.flyTo(point.lat, point.lng, 8);
@@ -220,6 +232,7 @@ function MapApp() {
       },
       (error) => {
         setLocating(false);
+        locatingRef.current = false;
         setToast(
           t(
             error.code === error.PERMISSION_DENIED
@@ -235,9 +248,22 @@ function MapApp() {
   }, [t]);
 
   const handleShare = useCallback(async () => {
+    const hash = encodeHash({
+      view: apiRef.current?.getView() ?? view,
+      lang, theme, labels: showLabels, graticule: showGraticule, markers, measure,
+    });
+    window.clearTimeout(urlTimerRef.current);
+    window.history.replaceState(null, '', hash);
     const ok = await copyText(window.location.href);
     setToast(t(ok ? 'app.share.done' : 'app.share.fail'));
-  }, [t]);
+  }, [view, lang, theme, showLabels, showGraticule, markers, measure, t]);
+
+  const togglePanel = useCallback(() => setPanelOpen((open) => !open), []);
+  const closePanel = useCallback(() => setPanelOpen(false), []);
+  const changeMode = useCallback((next: InteractionMode) => {
+    setMode(next);
+    if (next !== 'pan' && window.matchMedia('(max-width: 900px)').matches) setPanelOpen(false);
+  }, []);
 
   const handleReset = useCallback(() => {
     apiRef.current?.reset();
@@ -313,9 +339,9 @@ function MapApp() {
         showGraticule={showGraticule}
         onGraticule={setShowGraticule}
         mode={mode}
-        onMode={setMode}
+        onMode={changeMode}
         panelOpen={panelOpen}
-        onTogglePanel={() => setPanelOpen((open) => !open)}
+        onTogglePanel={togglePanel}
         onShare={handleShare}
         onReset={handleReset}
         onLocate={handleLocate}
@@ -323,7 +349,8 @@ function MapApp() {
       />
 
       <div className="workspace">
-        <aside className={`sidebar${panelOpen ? '' : ' is-collapsed'}`}>
+        {panelOpen ? <button className="sidebar-scrim" type="button" aria-label={t('app.panelHide')} onClick={closePanel} /> : null}
+        <aside className={`sidebar${panelOpen ? '' : ' is-collapsed'}`} aria-label={t('panel.details')}>
           <div className="sidebar__scroll">
             <SearchPanel
               docs={searchIndex}
@@ -366,7 +393,7 @@ function MapApp() {
             mode={mode}
             selectedCountryId={selectedCountryId}
             selectedCityId={selectedCityId}
-            initialView={initialState.view}
+            initialView={view}
             apiRef={apiRef}
             onViewChange={setView}
             onPointerMove={handlePointerMove}

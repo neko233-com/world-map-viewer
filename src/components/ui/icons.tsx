@@ -9,12 +9,8 @@ export type IconName =
   | 'share'
   | 'settings'
   | 'reset'
-  | 'plus'
-  | 'minus'
-  | 'chevron'
   | 'check'
   | 'pin'
-  | 'ruler'
   | 'globe'
   | 'trash'
   | 'target'
@@ -22,7 +18,6 @@ export type IconName =
   | 'sun'
   | 'moon'
   | 'auto'
-  | 'compass'
   | 'copy'
   | 'external';
 
@@ -66,20 +61,11 @@ const PATHS: Record<IconName, ReactNode> = {
       <path d="M4 4.5v6h6" />
     </>
   ),
-  plus: <path d="M12 5v14M5 12h14" />,
-  minus: <path d="M5 12h14" />,
-  chevron: <path d="M7 10l5 5 5-5" />,
   check: <path d="M5.5 13l4.2 4.2L18.5 8" />,
   pin: (
     <>
       <path d="M12 21c4.2-4.4 7-7.9 7-11.2A7 7 0 005 9.8C5 13.1 7.8 16.6 12 21z" />
       <circle cx="12" cy="9.8" r="2.4" />
-    </>
-  ),
-  ruler: (
-    <>
-      <path d="M13.8 3.2l7 7L8.2 22.8l-7-7z" />
-      <path d="M8.4 8.6l1.8 1.8M11.4 5.6l1.8 1.8M5.4 11.6l1.8 1.8" />
     </>
   ),
   globe: (
@@ -122,12 +108,6 @@ const PATHS: Record<IconName, ReactNode> = {
       <circle cx="12" cy="12" r="8.8" />
       <path d="M12 3.2v17.6" />
       <path d="M12 3.2c3 0 5.4 3.9 5.4 8.8S15 20.8 12 20.8z" fill="currentColor" stroke="none" />
-    </>
-  ),
-  compass: (
-    <>
-      <circle cx="12" cy="12" r="8.8" />
-      <path d="M14.9 9.1l-1.6 4.2-4.2 1.6 1.6-4.2z" />
     </>
   ),
   external: (

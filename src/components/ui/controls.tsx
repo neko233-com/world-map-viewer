@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useEffect, useRef, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
 
 import { Icon, type IconName } from './icons';
 
@@ -32,7 +32,7 @@ export interface SegmentedOption<T extends string> {
   icon?: IconName;
 }
 
-/** iOS 分段控件（语义上是单选组） */
+/** iOS 分段控件（语义上是单选组，支持方向键切换） */
 export function Segmented<T extends string>({
   value,
   options,
@@ -46,13 +46,35 @@ export function Segmented<T extends string>({
   label: string;
   block?: boolean;
 }) {
+  const itemRefs = useRef<(HTMLButtonElement | null)[]>([]);
+
+  const handleKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    let delta = 0;
+    if (event.key === 'ArrowRight' || event.key === 'ArrowDown') delta = 1;
+    else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') delta = -1;
+    else return;
+    event.preventDefault();
+    const index = options.findIndex((option) => option.value === value);
+    const next = (index + delta + options.length) % options.length;
+    onChange(options[next].value);
+    itemRefs.current[next]?.focus();
+  };
+
   return (
-    <div className={`segmented${block ? ' segmented--block' : ''}`} role="radiogroup" aria-label={label}>
-      {options.map((option) => {
+    <div
+      className={`segmented${block ? ' segmented--block' : ''}`}
+      role="radiogroup"
+      aria-label={label}
+      onKeyDown={handleKeyDown}
+    >
+      {options.map((option, index) => {
         const selected = option.value === value;
         return (
           <button
             key={option.value}
+            ref={(element) => {
+              itemRefs.current[index] = element;
+            }}
             type="button"
             role="radio"
             aria-checked={selected}
@@ -98,16 +120,6 @@ export function IconButton({
     >
       <Icon name={icon} size={Math.round(size * 0.52)} />
     </button>
-  );
-}
-
-/** 侧栏/气泡里的分组卡片 */
-export function Group({ title, children, className }: { title?: string; children: ReactNode; className?: string }) {
-  return (
-    <section className={`group${className ? ` ${className}` : ''}`}>
-      {title ? <h2 className="group__title">{title}</h2> : null}
-      <div className="group__body">{children}</div>
-    </section>
   );
 }
 

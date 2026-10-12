@@ -234,6 +234,8 @@ export function MapView(props: MapViewProps) {
   const bundleRef = useRef<LayerBundle | null>(null);
   const propsRef = useRef(props);
   propsRef.current = props;
+  // 当前悬停的国家，主题/外观切换重刷样式时用来保住悬停态
+  const hoveredCountryRef = useRef<string | null>(null);
 
   // ── 初始化：地图、窗格与全部图层只创建一次 ─────────────────────────
   useEffect(() => {
@@ -309,6 +311,7 @@ export function MapView(props: MapViewProps) {
         countryShapes.set(country.properties.id, path);
 
         path.on('mouseover', () => {
+          hoveredCountryRef.current = country.properties.id;
           path.setStyle(
             countryStyle(
               country,
@@ -321,6 +324,7 @@ export function MapView(props: MapViewProps) {
           path.bringToFront();
         });
         path.on('mouseout', () => {
+          hoveredCountryRef.current = null;
           path.setStyle(
             countryStyle(
               country,
@@ -721,7 +725,7 @@ export function MapView(props: MapViewProps) {
     bundle.countries.setStyle((feature) =>
       countryStyle(
         feature as CountryFeature,
-        false,
+        feature?.properties.id === hoveredCountryRef.current,
         props.theme,
         props.appearance,
         props.selectedCountryId,

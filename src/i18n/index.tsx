@@ -11,9 +11,8 @@ import {
 import { translate, type MessageKey } from './messages';
 import { LANG_IDS, matchLang, type Lang } from './types';
 
-export type { Lang, LanguageInfo } from './types';
+export type { Lang } from './types';
 export { LANGUAGES, LANG_IDS, matchLang } from './types';
-export { MESSAGES } from './messages';
 export type { MessageKey } from './messages';
 export {
   CONTINENTS,
